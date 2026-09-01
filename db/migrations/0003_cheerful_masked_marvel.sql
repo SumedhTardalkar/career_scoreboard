@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX `health_checkins_week_unique` ON `health_checkins` (`week`);
