@@ -2,32 +2,27 @@ import { NextResponse } from "next/server";
 import { db } from "@/db";
 import {
   activities,
+  categories,
   healthCheckins,
 } from "@/db/schema";
 import {
   and,
   gte,
   lte,
+  eq,
 } from "drizzle-orm";
 import {
   calculateCategoryProgress,
-  SCORE_RULES,
+  HEALTH_POINTS,
 } from "@/lib/scoring";
-
-const HEALTH_POINTS = {
-  lost_weight: 2,
-  maintained_gained_muscle: 1,
-  gained_gained_muscle: 1,
-  maintained: 0.5,
-  gained_weight: 0,
-  gained_weight_lost_muscle: -1,
-} as const;
 
 function formatDate(date: Date) {
   const year = date.getFullYear();
+
   const month = String(
     date.getMonth() + 1
   ).padStart(2, "0");
+
   const day = String(
     date.getDate()
   ).padStart(2, "0");
@@ -62,171 +57,187 @@ export async function GET() {
     endDate,
   } = getMonthRange();
 
-  const [activityRows, healthRows] =
-    await Promise.all([
-      db
-        .select()
-        .from(activities)
-        .where(
-          and(
-            gte(
-              activities.date,
-              startDate
-            ),
-            lte(
-              activities.date,
-              endDate
-            )
+  const [
+    categoryRows,
+    activityRows,
+    healthRows,
+  ] = await Promise.all([
+    db
+      .select()
+      .from(categories)
+      .where(eq(categories.archived, false)),
+
+    db
+      .select()
+      .from(activities)
+      .where(
+        and(
+          gte(
+            activities.date,
+            startDate
+          ),
+          lte(
+            activities.date,
+            endDate
           )
-        ),
+        )
+      ),
 
-      db
-        .select()
-        .from(healthCheckins),
-    ]);
+    db
+      .select()
+      .from(healthCheckins),
+  ]);
 
-  const breakdown = Object.entries(
-    SCORE_RULES
-  ).map(([category, rule]) => {
-    if (category === "health") {
-      const relevantHealth =
-        healthRows.filter((checkin) => {
-          return (
-            checkin.week >= startDate &&
-            checkin.week <= endDate
-          );
-        });
+  const activeCategories =
+    categoryRows.filter(
+      (category) =>
+        !category.archived
+    );
 
-      const rawHealthPoints =
-        relevantHealth.reduce(
-          (total, checkin) => {
-            return (
-              total +
-              HEALTH_POINTS[
-                checkin.outcome as keyof typeof HEALTH_POINTS
-              ]
+  const breakdown =
+    activeCategories.map(
+      (category) => {
+        if (
+          category.inputType ===
+          "health"
+        ) {
+          const relevantHealth =
+            healthRows.filter(
+              (checkin) =>
+                checkin.week >=
+                  startDate &&
+                checkin.week <=
+                  endDate
             );
-          },
-          0
-        );
 
-      /*
-       * A month can contain multiple weekly
-       * health check-ins.
-       *
-       * Each week can contribute up to 2 raw
-       * health points.
-       */
-      const maximumHealthPoints =
-        relevantHealth.length * 2;
+          const rawHealthPoints =
+            relevantHealth.reduce(
+              (total, checkin) =>
+                total +
+                HEALTH_POINTS[
+                  checkin
+                    .outcome as keyof typeof HEALTH_POINTS
+                ],
+              0
+            );
 
-      const healthProgress =
-        maximumHealthPoints === 0
-          ? 0
-          : Math.min(
-              Math.max(
-                rawHealthPoints /
-                  maximumHealthPoints,
-                0
+          const maximumHealthPoints =
+            relevantHealth.length * 2;
+
+          const progress =
+            maximumHealthPoints === 0
+              ? 0
+              : Math.min(
+                  Math.max(
+                    rawHealthPoints /
+                      maximumHealthPoints,
+                    0
+                  ),
+                  1
+                );
+
+          return {
+            category:
+              category.slug,
+            name: category.name,
+            unit: category.unit,
+            inputType:
+              category.inputType,
+            actual:
+              rawHealthPoints,
+            target:
+              maximumHealthPoints || 2,
+            weight:
+              category.weight,
+            points:
+              Number(
+                (
+                  progress *
+                  category.weight
+                ).toFixed(2)
               ),
-              1
-            );
+          };
+        }
 
-      const weightedPoints =
-        healthProgress * rule.weight;
-
-      return {
-        category,
-        actual: rawHealthPoints,
-        target: maximumHealthPoints || 2,
-        weight: rule.weight,
-        points: Number(
-          weightedPoints.toFixed(2)
-        ),
-      };
-    }
-
-    const categoryActivities =
-      activityRows.filter(
-        (activity) =>
-          activity.category === category
-      );
-
-    let actual = 0;
-
-    if (rule.metric === "duration") {
-      actual =
-        categoryActivities.reduce(
-          (total, activity) =>
-            total +
-            (activity.durationMinutes ?? 0),
-          0
-        );
-    }
-
-    if (rule.metric === "quantity") {
-      actual =
-        categoryActivities.reduce(
-          (total, activity) =>
-            total +
-            (activity.quantity ?? 0),
-          0
-        );
-    }
-
-    if (rule.metric === "activities") {
-      actual = categoryActivities.length;
-    }
-
-    /*
-     * Monthly targets are scaled by the number
-     * of days elapsed in the month.
-     *
-     * This prevents September 1 from being
-     * compared against the entire month's target.
-     */
-    const now = new Date();
-
-    const daysElapsed =
-      now.getDate();
-
-    const daysInMonth =
-      new Date(
-        now.getFullYear(),
-        now.getMonth() + 1,
-        0
-      ).getDate();
-
-    const monthlyTarget =
-      rule.target *
-      (daysElapsed / daysInMonth);
-
-    const result =
-      calculateCategoryProgress(
-        category as keyof typeof SCORE_RULES,
-        actual
-      );
-
-    const progress =
-      monthlyTarget === 0
-        ? 0
-        : Math.min(
-            actual / monthlyTarget,
-            1
+        const categoryActivities =
+          activityRows.filter(
+            (activity) =>
+              activity.categoryId ===
+              category.id
           );
 
-    return {
-      category,
-      actual,
-      target: Number(
-        monthlyTarget.toFixed(2)
-      ),
-      weight: rule.weight,
-      points: Number(
-        (progress * rule.weight).toFixed(2)
-      ),
-    };
-  });
+        let actual = 0;
+
+        if (
+          category.inputType ===
+          "duration"
+        ) {
+          actual =
+            categoryActivities.reduce(
+              (total, activity) =>
+                total +
+                (activity.durationMinutes ??
+                  0),
+              0
+            );
+        }
+
+        if (
+          category.inputType ===
+          "quantity"
+        ) {
+          actual =
+            categoryActivities.reduce(
+              (total, activity) =>
+                total +
+                (activity.quantity ?? 0),
+              0
+            );
+        }
+
+        const now = new Date();
+
+        const daysElapsed =
+          now.getDate();
+
+        const daysInMonth =
+          new Date(
+            now.getFullYear(),
+            now.getMonth() + 1,
+            0
+          ).getDate();
+
+        const monthlyTarget =
+          category.target *
+          (daysElapsed /
+            daysInMonth);
+
+        const result =
+          calculateCategoryProgress(
+            actual,
+            monthlyTarget,
+            category.weight
+          );
+
+        return {
+          category:
+            category.slug,
+          name: category.name,
+          unit: category.unit,
+          inputType:
+            category.inputType,
+          actual,
+          target: Number(
+            monthlyTarget.toFixed(2)
+          ),
+          weight:
+            category.weight,
+          points: Number(
+            result.points.toFixed(2)
+          ),
+        };
+      }
+    );
 
   const score =
     breakdown.reduce(

@@ -1,20 +1,47 @@
-import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import {
+  integer,
+  sqliteTable,
+  text,
+} from "drizzle-orm/sqlite-core";
+
+export const categories = sqliteTable("categories", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+
+  name: text("name").notNull(),
+
+  slug: text("slug").notNull().unique(),
+
+  inputType: text("input_type", {
+    enum: ["duration", "quantity", "health"],
+  }).notNull(),
+
+  unit: text("unit").notNull(),
+
+  target: integer("target").notNull(),
+
+  weight: integer("weight").notNull(),
+
+  archived: integer("archived", {
+    mode: "boolean",
+  })
+    .notNull()
+    .default(false),
+
+  createdAt: integer("created_at", {
+    mode: "timestamp",
+  })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
 
 export const activities = sqliteTable("activities", {
   id: integer("id").primaryKey({ autoIncrement: true }),
 
   date: text("date").notNull(),
 
-  category: text("category", {
-    enum: [
-      "coding",
-      "dsa",
-      "engineering",
-      "project",
-      "career",
-      "health",
-    ],
-  }).notNull(),
+  categoryId: integer("category_id")
+    .notNull()
+    .references(() => categories.id),
 
   title: text("title").notNull(),
 
@@ -24,31 +51,13 @@ export const activities = sqliteTable("activities", {
 
   notes: text("notes"),
 
-  createdAt: integer("created_at", { mode: "timestamp" })
+  createdAt: integer("created_at", {
+    mode: "timestamp",
+  })
     .notNull()
     .$defaultFn(() => new Date()),
 });
 
-export const goals = sqliteTable("goals", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
-
-  category: text("category", {
-    enum: [
-      "coding",
-      "dsa",
-      "engineering",
-      "project",
-      "career",
-      "health",
-    ],
-  }).notNull(),
-
-  period: text("period", {
-    enum: ["daily", "weekly", "monthly"],
-  }).notNull(),
-
-  target: integer("target").notNull(),
-});
 
 export const healthCheckins = sqliteTable("health_checkins", {
   id: integer("id").primaryKey({ autoIncrement: true }),
@@ -72,7 +81,9 @@ export const healthCheckins = sqliteTable("health_checkins", {
 
   notes: text("notes"),
 
-  createdAt: integer("created_at", { mode: "timestamp" })
+  createdAt: integer("created_at", {
+    mode: "timestamp",
+  })
     .notNull()
     .$defaultFn(() => new Date()),
 });

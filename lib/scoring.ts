@@ -1,48 +1,7 @@
-export type Category =
-  | "coding"
-  | "dsa"
-  | "engineering"
-  | "project"
-  | "career"
+export type InputType =
+  | "duration"
+  | "quantity"
   | "health";
-
-export const SCORE_RULES = {
-  coding: {
-    target: 600,
-    weight: 25,
-    metric: "duration",
-  },
-
-  dsa: {
-    target: 5,
-    weight: 20,
-    metric: "quantity",
-  },
-
-  engineering: {
-    target: 3,
-    weight: 15,
-    metric: "activities",
-  },
-
-  project: {
-    target: 300,
-    weight: 15,
-    metric: "duration",
-  },
-
-  career: {
-    target: 5,
-    weight: 10,
-    metric: "quantity",
-  },
-
-  health: {
-    target: 1,
-    weight: 15,
-    metric: "health",
-  },
-} as const;
 
 export const HEALTH_POINTS = {
   lost_weight: 2,
@@ -53,22 +12,59 @@ export const HEALTH_POINTS = {
   gained_weight_lost_muscle: -1,
 } as const;
 
-export function calculateCategoryProgress(
-  category: Category,
-  actual: number
-) {
-  const rule = SCORE_RULES[category];
+export type HealthOutcome =
+  keyof typeof HEALTH_POINTS;
 
-  const progress = Math.min(actual / rule.target, 1);
+export function calculateCategoryProgress(
+  actual: number,
+  target: number,
+  weight: number
+) {
+  if (target <= 0 || weight <= 0) {
+    return {
+      progress: 0,
+      points: 0,
+    };
+  }
+
+  const progress = Math.min(
+    Math.max(actual / target, 0),
+    1
+  );
 
   return {
     progress,
-    points: progress * rule.weight,
+    points: progress * weight,
   };
 }
 
+export function calculateWeightedPoints(
+  progress: number,
+  weight: number,
+  totalWeight: number
+) {
+  if (
+    totalWeight <= 0 ||
+    weight <= 0
+  ) {
+    return 0;
+  }
+
+  const safeProgress = Math.min(
+    Math.max(progress, 0),
+    1
+  );
+
+  return (
+    safeProgress *
+    (weight / totalWeight) *
+    100
+  );
+}
+
+
 export function calculateHealthPoints(
-  outcome: keyof typeof HEALTH_POINTS
+  outcome: HealthOutcome
 ) {
   return HEALTH_POINTS[outcome];
 }

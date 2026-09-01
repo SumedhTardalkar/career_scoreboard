@@ -1,67 +1,102 @@
-import { db } from "@/db";
-import { activities } from "@/db/schema";
-import { SCORE_RULES } from "@/lib/scoring";
 import { NextResponse } from "next/server";
+import { db } from "@/db";
+import { activities, categories } from "@/db/schema";
+import { eq } from "drizzle-orm";
+import { calculateCategoryProgress } from "@/lib/scoring";
 
 export async function GET() {
-  const allActivities = await db.select().from(activities);
+  const [categoryRows, activityRows] =
+    await Promise.all([
+      db
+        .select()
+        .from(categories)
+        .where(eq(categories.archived, false)),
 
-  const today = new Date().toISOString().split("T")[0];
+      db
+        .select()
+        .from(activities),
+    ]);
 
-  const todayActivities = allActivities.filter(
-    (activity) => activity.date === today
-  );
+  const today =
+    new Date()
+      .toISOString()
+      .split("T")[0];
 
-  const categories = Object.keys(SCORE_RULES) as Array<
-    keyof typeof SCORE_RULES
-  >;
-
-  const breakdown = categories.map((category) => {
-    const rule = SCORE_RULES[category];
-
-    const categoryActivities = todayActivities.filter(
-      (activity) => activity.category === category
+  const todayActivities =
+    activityRows.filter(
+      (activity) =>
+        activity.date === today
     );
 
-    let actual = 0;
+  const breakdown =
+    categoryRows.map((category) => {
+      const categoryActivities =
+        todayActivities.filter(
+          (activity) =>
+            activity.categoryId ===
+            category.id
+        );
 
-    if (rule.metric === "duration") {
-      actual = categoryActivities.reduce(
-        (total, activity) => total + (activity.durationMinutes ?? 0),
-        0
-      );
-    }
+      let actual = 0;
 
-    if (rule.metric === "quantity") {
-      actual = categoryActivities.reduce(
-        (total, activity) => total + (activity.quantity ?? 0),
-        0
-      );
-    }
+      if (
+        category.inputType ===
+        "duration"
+      ) {
+        actual =
+          categoryActivities.reduce(
+            (total, activity) =>
+              total +
+              (activity.durationMinutes ??
+                0),
+            0
+          );
+      }
 
-    if (rule.metric === "activities") {
-      actual = categoryActivities.length;
-    }
+      if (
+        category.inputType ===
+        "quantity"
+      ) {
+        actual =
+          categoryActivities.reduce(
+            (total, activity) =>
+              total +
+              (activity.quantity ?? 0),
+            0
+          );
+      }
 
-    const progress = Math.min(actual / rule.target, 1);
+      const result =
+        calculateCategoryProgress(
+          actual,
+          category.target,
+          category.weight
+        );
 
-    return {
-      category,
-      actual,
-      target: rule.target,
-      weight: rule.weight,
-      points: progress * rule.weight,
-    };
-  });
+      return {
+        category: category.slug,
+        name: category.name,
+        unit: category.unit,
+        inputType: category.inputType,
+        actual,
+        target: category.target,
+        weight: category.weight,
+        points: result.points,
+      };
+    });
 
-  const score = breakdown.reduce(
-    (total, category) => total + category.points,
-    0
-  );
+  const score =
+    breakdown.reduce(
+      (total, category) =>
+        total + category.points,
+      0
+    );
 
   return NextResponse.json({
     date: today,
-    score,
+    score: Number(
+      score.toFixed(2)
+    ),
     breakdown,
   });
 }
