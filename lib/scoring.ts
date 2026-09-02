@@ -1,19 +1,7 @@
 export type InputType =
   | "duration"
   | "quantity"
-  | "health";
 
-export const HEALTH_POINTS = {
-  lost_weight: 2,
-  maintained_gained_muscle: 1,
-  gained_gained_muscle: 1,
-  maintained: 0.5,
-  gained_weight: 0,
-  gained_weight_lost_muscle: -1,
-} as const;
-
-export type HealthOutcome =
-  keyof typeof HEALTH_POINTS;
 
 export function calculateCategoryProgress(
   actual: number,
@@ -60,11 +48,4 @@ export function calculateWeightedPoints(
     (weight / totalWeight) *
     100
   );
-}
-
-
-export function calculateHealthPoints(
-  outcome: HealthOutcome
-) {
-  return HEALTH_POINTS[outcome];
 }

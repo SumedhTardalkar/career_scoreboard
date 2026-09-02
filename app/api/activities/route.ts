@@ -108,19 +108,6 @@ export async function POST(
       );
     }
 
-    if (
-      category.inputType ===
-      "health"
-    ) {
-      return NextResponse.json(
-        {
-          error:
-            "Health uses the dedicated health check-in flow.",
-        },
-        { status: 400 },
-      );
-    }
-
     let storedDuration:
       | number
       | null = null;

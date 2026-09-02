@@ -12,7 +12,7 @@ export const categories = sqliteTable("categories", {
   slug: text("slug").notNull().unique(),
 
   inputType: text("input_type", {
-    enum: ["duration", "quantity", "health"],
+    enum: ["duration", "quantity"],
   }).notNull(),
 
   unit: text("unit").notNull(),
@@ -48,36 +48,6 @@ export const activities = sqliteTable("activities", {
   durationMinutes: integer("duration_minutes"),
 
   quantity: integer("quantity"),
-
-  notes: text("notes"),
-
-  createdAt: integer("created_at", {
-    mode: "timestamp",
-  })
-    .notNull()
-    .$defaultFn(() => new Date()),
-});
-
-
-export const healthCheckins = sqliteTable("health_checkins", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
-
-  week: text("week").notNull().unique(),
-
-  weightGrams: integer("weight_grams"),
-
-  muscleMassGrams: integer("muscle_mass_grams"),
-
-  outcome: text("outcome", {
-    enum: [
-      "lost_weight",
-      "maintained_gained_muscle",
-      "gained_gained_muscle",
-      "maintained",
-      "gained_weight",
-      "gained_weight_lost_muscle",
-    ],
-  }).notNull(),
 
   notes: text("notes"),
 

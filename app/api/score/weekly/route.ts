@@ -1,20 +1,10 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
-import {
-  activities,
-  categories,
-  healthCheckins,
-} from "@/db/schema";
-import {
-  and,
-  eq,
-  gte,
-  lte,
-} from "drizzle-orm";
+import { activities, categories } from "@/db/schema";
+import { and, eq, gte, lte } from "drizzle-orm";
 import {
   calculateCategoryProgress,
   calculateWeightedPoints,
-  HEALTH_POINTS,
 } from "@/lib/scoring";
 
 function getWeekRange() {
@@ -75,12 +65,13 @@ export async function GET() {
   const [
     categoryRows,
     activityRows,
-    healthRows,
   ] = await Promise.all([
     db
       .select()
       .from(categories)
-      .where(eq(categories.archived, false)),
+      .where(
+        eq(categories.archived, false)
+      ),
 
     db
       .select()
@@ -97,21 +88,7 @@ export async function GET() {
           )
         )
       ),
-
-    db
-      .select()
-      .from(healthCheckins)
-      .where(
-        eq(
-          healthCheckins.week,
-          startDate
-        )
-      )
-      .limit(1),
   ]);
-
-  const healthCheckin =
-    healthRows[0] ?? null;
 
   const totalWeight =
     categoryRows.reduce(
@@ -122,52 +99,6 @@ export async function GET() {
 
   const breakdown =
     categoryRows.map((category) => {
-      if (
-        category.inputType === "health"
-      ) {
-        const rawPoints =
-          healthCheckin
-            ? HEALTH_POINTS[
-                healthCheckin.outcome as keyof typeof HEALTH_POINTS
-              ]
-            : 0;
-
-        const progress =
-          Math.min(
-            Math.max(
-              rawPoints / 2,
-              0
-            ),
-            1
-          );
-
-        const points =
-          calculateWeightedPoints(
-            progress,
-            category.weight,
-            totalWeight
-          );
-
-        return {
-          category: category.slug,
-          name: category.name,
-          unit: category.unit,
-          inputType: category.inputType,
-          actual: rawPoints,
-          target: 2,
-          weight: category.weight,
-          percentage:
-            totalWeight === 0
-              ? 0
-              : (category.weight /
-                  totalWeight) *
-                100,
-          progress:
-            progress * 100,
-          points,
-        };
-      }
-
       const categoryActivities =
         activityRows.filter(
           (activity) =>
@@ -199,7 +130,8 @@ export async function GET() {
           categoryActivities.reduce(
             (total, activity) =>
               total +
-              (activity.quantity ?? 0),
+              (activity.quantity ??
+                0),
             0
           );
       }

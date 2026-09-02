@@ -15,6 +15,13 @@
       "when": 1788295110891,
       "tag": "0001_glorious_marrow",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1788361058851,
+      "tag": "0002_silky_daimon_hellstrom",
+      "breakpoints": true
     }
   ]
 }
